@@ -166,7 +166,26 @@ def _build(input_url: str, resolved: str, network_ok: bool, err):
     }
 
 
-def resolve(url: str) -> dict:
+def probe_reachable(url: str):
+    """url に実際に到達できるか。(reachable_bool, detail)。
+
+    resolver の `network` は「パースにネットが要ったか」でしかない。
+    本文抽出(Step 2)の可否は、x.com に**実際に届くか**で決まる。
+    egress 遮断環境では CONNECT トンネル 403 等で UNREACHABLE になる。
+    """
+    req = urllib.request.Request(url, method="GET", headers={"User-Agent": _UA})
+    try:
+        urllib.request.urlopen(req, timeout=_TIMEOUT)
+        return True, "ok"
+    except urllib.error.HTTPError as e:
+        # 401/403/404 等が返る = サーバには届いている(到達は可)
+        return True, f"HTTP {e.code} (reached)"
+    except (urllib.error.URLError, OSError) as e:
+        reason = getattr(e, "reason", e)
+        return False, f"{type(e).__name__}: {reason}"
+
+
+def resolve(url: str, do_probe: bool = False) -> dict:
     url = url.strip()
     if not url:
         return _build(url, url, True, None)
@@ -175,10 +194,23 @@ def resolve(url: str) -> dict:
     host = _host_of(url)
     # 既に x.com の status 直リンクなら、ネットワークに出ずに展開できる
     if host in _X_HOSTS and _STATUS_RE.search(url):
-        return _build(url, url, True, None)
-    # t.co 等はリダイレクト解決が要る
-    resolved, network_ok, err = _follow(url)
-    return _build(url, resolved, network_ok, err)
+        result = _build(url, url, True, None)
+    else:
+        # t.co 等はリダイレクト解決が要る
+        resolved, network_ok, err = _follow(url)
+        result = _build(url, resolved, network_ok, err)
+    if do_probe:
+        target = result["candidates"].get("status") or result["resolved_url"]
+        reachable, detail = probe_reachable(target)
+        result["reachable"] = reachable  # x.com に実際に届くか(抽出可否の真の判定)
+        result["reachable_detail"] = detail
+        if not reachable:
+            result["note"] = (
+                "x.com unreachable (extraction not possible here). "
+                f"{detail}. Use fallback: delegate to local Claude Code / Codex, "
+                "or paste the text."
+            )
+    return result
 
 
 def _iter_inputs(argv):
@@ -195,10 +227,11 @@ def _iter_inputs(argv):
 def main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     pretty = "--pretty" in argv
+    do_probe = "--probe" in argv
     any_input = False
     for url in _iter_inputs(argv):
         any_input = True
-        result = resolve(url)
+        result = resolve(url, do_probe=do_probe)
         if pretty:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:

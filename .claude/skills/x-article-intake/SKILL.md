@@ -41,13 +41,18 @@ X URL → scripts/resolve_x_articles.py → t.co解決 → x.com/<user>/status|i
 ### Step 0 — 環境判定(必須・最初に1回)
 
 ```bash
-python3 scripts/resolve_x_articles.py "<貼られたXのURL>"
+python3 scripts/resolve_x_articles.py --probe "<貼られたXのURL>"
 ```
 
-返り値の `network` を見る。
-- `network: true` かつ `status_id` が取れた → **Step 1 へ(フル実行可)**。
-- `network: false` → この環境は x.com に届かない → **フォールバックへ**。
+`--probe` は x.com に**実際に届くか**を叩いて確認する。判定はこれで行う:
+- `reachable: true` → x.com に届く → **Step 1 へ(フル実行可)**。
+- `reachable: false` → この環境は x.com に届かない → **フォールバックへ**。
 
+> **注意:** `network` フィールドだけで判定しないこと。`network` は「URL の
+> パースにネット取得が要ったか」でしかなく、status 直リンクは常に
+> `network: true` を返す(パースに通信が要らないから)。抽出可否の真の判定は
+> `--probe` が付ける `reachable` で見る。
+>
 > resolver は標準ライブラリのみ。t.co 等の短縮は redirect を解決し、
 > 既に `x.com/<user>/status/<id>` ならネット無しで正規化する。
 > 出力は 1 URL = 1 行 JSON(`candidates` に status / i_status / i_article /
