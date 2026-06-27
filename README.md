@@ -52,7 +52,8 @@
 [`SEN_Canon_v2_Part3_Implementation.md`](./SEN_Canon_v2_Part3_Implementation.md)
 
 プロダクト、プラットフォーム、AI 運用、組織、
-個人実装、AI システムプロンプトまでの具体ガイド。
+個人実装、AI システムプロンプト、
+モデル非依存設計（LLM いいとこ取り OS）までの具体ガイド。
 
 ---
 
